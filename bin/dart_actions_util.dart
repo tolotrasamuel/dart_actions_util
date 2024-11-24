@@ -2,15 +2,23 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
+import 'package:path/path.dart' as path;
 
 const String version = '0.0.1';
 
 class PubspecModifier {
   final String filePath;
-  final String username;
-  final String token;
+  final String? rootLocalLibrary;
 
-  PubspecModifier(this.filePath, this.username, this.token);
+  static Map<String, dynamic> castAsMap(dynamic value) {
+    if (value == null) return {};
+    return Map<String, dynamic>.from(value);
+  }
+
+  PubspecModifier(
+    this.filePath,
+    this.rootLocalLibrary,
+  );
 
   void updateDependency(String dependencyName) {
     final file = File(filePath);
@@ -24,28 +32,42 @@ class PubspecModifier {
     final yamlDoc = loadYaml(content);
     final yamlEditor = YamlEditor(content);
 
-    final dependencies = yamlDoc['dependencies'];
-    if (dependencies == null || dependencies is! Map) {
-      print('No dependencies found in pubspec.yaml');
-      return;
-    }
+    final dependencies = castAsMap(yamlDoc['dependencies']);
+    final remoteDependencies = castAsMap(yamlDoc['remote_dependencies']);
 
     bool updated = false;
 
+    final rootLocalLibrary = this.rootLocalLibrary;
     dependencies.forEach((key, value) {
-      if (value is Map && value.containsKey('path')) {
-        final localPath = value['path'];
-        final lastPart = localPath.split(Platform.pathSeparator).last;
+      // final isPath = value is Map && value.containsKey('path');
+      // if (!isPath) {
+      //   return;
+      // }
 
-        final gitUrl = 'https://$username:$token@github.com/$username/$lastPart.git';
-        final gitDependency = {
-          'git': {'url': gitUrl, 'ref': 'main'}
-        };
+      final remoteDependency = remoteDependencies[key];
 
-        yamlEditor.update(['dependencies', key], gitDependency);
-        print('Updated $key to use git dependency: $gitUrl');
-        updated = true;
+      if (remoteDependency == null) {
+        print('No remote dependency found for $key');
+        return;
       }
+
+      // final localPath = value['path'];
+      // final lastPart = localPath.split(Platform.pathSeparator).last;
+
+      late Map<String, dynamic> gitDependency;
+
+      if (rootLocalLibrary == null) {
+        gitDependency = castAsMap(remoteDependency);
+      } else {
+        final localPath = path.join(rootLocalLibrary, key);
+        gitDependency = {
+          'path': localPath,
+        };
+      }
+
+      yamlEditor.update(['dependencies', key], gitDependency);
+      print('Updated $key to git dependency');
+      updated = true;
     });
 
     if (!updated) {
@@ -63,17 +85,13 @@ ArgParser buildParser() {
     ..addOption(
       'file',
       abbr: 'f',
+      mandatory: true,
       help: 'Path to the pubspec.yaml file to modify.',
     )
     ..addOption(
-      'username',
-      abbr: 'u',
-      help: 'GitHub username for git dependency replacement.',
-    )
-    ..addOption(
-      'token',
-      abbr: 't',
-      help: 'GitHub personal access token for git dependency replacement.',
+      'root',
+      abbr: 'r',
+      help: 'Root local library name for git dependency replacement.',
     )
     ..addFlag(
       'help',
@@ -81,20 +99,24 @@ ArgParser buildParser() {
       negatable: false,
       help: 'Print this usage information.',
     )
-    ..addFlag(
-        'version',
-        negatable: false,
-        help: 'Print the tool version.');
+    ..addFlag('version', negatable: false, help: 'Print the tool version.');
 }
 
 void printUsage(ArgParser argParser) {
-  print('Usage: dart dart_actions_util.dart --file <path> --username <user> --token <token>');
+  print(
+      'Usage: dart dart_actions_util.dart --file <path> --username <user> --token <token>');
   print(argParser.usage);
 }
 
 void main(List<String> arguments) {
-  final argParser = buildParser();
+  if (arguments.isEmpty) {
+    /// dart run debug
+    arguments = [...arguments];
+    arguments.addAll(["--file", "pubspec.test.yaml"]);
+    // arguments.addAll(["--root", "./"]);
 
+  }
+  final argParser = buildParser();
   try {
     final results = argParser.parse(arguments);
 
@@ -107,18 +129,19 @@ void main(List<String> arguments) {
       print('dart_actions_util version: $version');
       return;
     }
+    // results['file'] = 'pubspec.yaml';
 
     final filePath = results['file'];
-    final username = results['username'];
-    final token = results['token'];
+    final rootLocalLibrary = results['root'];
+    // final token = results['token'];
 
-    if (filePath == null || username == null || token == null) {
+    if (filePath == null) {
       print('Error: Missing required arguments.');
       printUsage(argParser);
       return;
     }
 
-    final modifier = PubspecModifier(filePath, username, token);
+    final modifier = PubspecModifier(filePath, rootLocalLibrary);
     modifier.updateDependency(filePath);
   } on FormatException catch (e) {
     print('Error: ${e.message}');

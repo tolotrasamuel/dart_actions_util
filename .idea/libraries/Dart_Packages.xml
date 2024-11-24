@@ -352,6 +352,13 @@
             </list>
           </value>
         </entry>
+        <entry key="yaml_edit">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/yaml_edit-2.2.1/lib" />
+            </list>
+          </value>
+        </entry>
       </option>
     </properties>
     <CLASSES>
@@ -404,6 +411,7 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/web_socket_channel-3.0.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webkit_inspection_protocol-1.2.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/yaml-3.1.2/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/yaml_edit-2.2.1/lib" />
       <root url="file://$USER_HOME$/fvm/versions/3.22.2/bin/cache/dart-sdk/pkg/_macros/lib" />
     </CLASSES>
     <JAVADOC />
