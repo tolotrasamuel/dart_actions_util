@@ -2,13 +2,12 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
-import 'package:path/path.dart' as path;
 
 const String version = '0.0.1';
 
 class PubspecModifier {
   final String filePath;
-  final String? rootLocalLibrary;
+  final String? mapFile;
 
   static Map<String, dynamic> castAsMap(dynamic value) {
     if (value == null) return {};
@@ -17,7 +16,7 @@ class PubspecModifier {
 
   PubspecModifier(
     this.filePath,
-    this.rootLocalLibrary,
+    this.mapFile,
   );
 
   void updateDependency(String dependencyName) {
@@ -30,6 +29,15 @@ class PubspecModifier {
 
     final content = file.readAsStringSync();
     final yamlDoc = loadYaml(content);
+    final mapToLocalFile = mapFile;
+
+    Map<String, dynamic> localDependencies = {};
+    if (mapToLocalFile != null) {
+      final mapFileContent = File(mapToLocalFile).readAsStringSync();
+      final mapDocYaml = loadYaml(mapFileContent);
+      localDependencies = castAsMap(mapDocYaml['local_dependencies']);
+    }
+
     final yamlEditor = YamlEditor(content);
 
     final dependencies = castAsMap(yamlDoc['dependencies']);
@@ -37,36 +45,24 @@ class PubspecModifier {
 
     bool updated = false;
 
-    final rootLocalLibrary = this.rootLocalLibrary;
     dependencies.forEach((key, value) {
-      // final isPath = value is Map && value.containsKey('path');
-      // if (!isPath) {
-      //   return;
-      // }
-
       final remoteDependency = remoteDependencies[key];
-
-      if (remoteDependency == null) {
-        print('No remote dependency found for $key');
-        return;
-      }
-
-      // final localPath = value['path'];
-      // final lastPart = localPath.split(Platform.pathSeparator).last;
+      final localDependency = localDependencies[key];
 
       late Map<String, dynamic> gitDependency;
 
-      if (rootLocalLibrary == null) {
+      if (localDependency != null) {
+        gitDependency = castAsMap(localDependency);
+        print('Updated $key to local dependency');
+      } else if (remoteDependency != null) {
         gitDependency = castAsMap(remoteDependency);
+        print('Updated $key to git dependency');
       } else {
-        final localPath = path.join(rootLocalLibrary, key);
-        gitDependency = {
-          'path': localPath,
-        };
+        print('No remote or local dependency found for $key');
+        return;
       }
 
       yamlEditor.update(['dependencies', key], gitDependency);
-      print('Updated $key to git dependency');
       updated = true;
     });
 
@@ -76,7 +72,7 @@ class PubspecModifier {
     }
 
     file.writeAsStringSync(yamlEditor.toString());
-    print('pubspec.yaml updated successfully!');
+    print('$filePath updated successfully!');
   }
 }
 
@@ -89,9 +85,10 @@ ArgParser buildParser() {
       help: 'Path to the pubspec.yaml file to modify.',
     )
     ..addOption(
-      'root',
-      abbr: 'r',
-      help: 'Root local library name for git dependency replacement.',
+      'mapFile',
+      abbr: 'm',
+      help:
+          'Path to the map file to use for updating the pubspec.yaml file to local paths.',
     )
     ..addFlag(
       'help',
@@ -113,8 +110,10 @@ void main(List<String> arguments) {
     /// dart run debug
     arguments = [...arguments];
     arguments.addAll(["--file", "pubspec.test.yaml"]);
-    // arguments.addAll(["--root", "./"]);
-
+    arguments.addAll([
+      "--mapFile",
+      "/Users/samuel/StudioProjects/shared_frontend_tools/pubspec.local.yaml"
+    ]);
   }
   final argParser = buildParser();
   try {
@@ -132,7 +131,7 @@ void main(List<String> arguments) {
     // results['file'] = 'pubspec.yaml';
 
     final filePath = results['file'];
-    final rootLocalLibrary = results['root'];
+    final mapFile = results['mapFile'];
     // final token = results['token'];
 
     if (filePath == null) {
@@ -141,7 +140,8 @@ void main(List<String> arguments) {
       return;
     }
 
-    final modifier = PubspecModifier(filePath, rootLocalLibrary);
+    print("filePath: $filePath and mapFile: $mapFile");
+    final modifier = PubspecModifier(filePath, mapFile);
     modifier.updateDependency(filePath);
   } on FormatException catch (e) {
     print('Error: ${e.message}');
