@@ -1,0 +1,21 @@
+name: Dart Actions Util
+description: A GitHub Action to update Dart pubspec.yaml dependencies from local path to Git.
+
+inputs:
+  pubspec-path:
+    description: Path to the pubspec.yaml file to modify.
+    required: true
+  username:
+    description: GitHub username for replacing path dependencies.
+    required: true
+  token:
+    description: GitHub personal access token for git dependency replacement.
+    required: true
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - ${{ inputs.pubspec-path }}
+    - ${{ inputs.username }}
+    - ${{ inputs.token }}
